@@ -108,13 +108,13 @@ function addWebhook() {
 
     // 2. Create server.ts
     const serverContent = framework === 'hono' ? honoServerContent : fastifyServerContent;
-    fs.writeFileSync(path.join(projectPath, 'server.ts'), serverContent);
-    console.log('✅ Created server.ts');
+    fs.writeFileSync(path.join(projectPath, 'src/server.ts'), serverContent);
+    console.log('✅ Created src/server.ts');
 
     // 3. Add start:webhook script to package.json
     const packageJsonPath = path.join(projectPath, 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-    packageJson.scripts['start:webhook'] = 'bun run server.ts';
+    packageJson.scripts['start:webhook'] = 'bun run src/server.ts';
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
     console.log('✅ Added start:webhook script to package.json');
 
@@ -132,7 +132,7 @@ function addWebhook() {
     console.log('\n🎉 Webhook setup complete!\n');
     console.log('Next steps:');
     console.log('1. Set your WEBHOOK_URL in the .env file.');
-    console.log('2. Update the webhook path in server.ts.');
+    console.log('2. Update the webhook path in src/server.ts.');
     console.log('3. Run `bun run start:webhook` to start the server.');
     
   } catch (error) {

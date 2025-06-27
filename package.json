@@ -2,7 +2,7 @@
   "name": "create-telebot",
   "version": "1.0.4",
   "description": "A CLI tool to create Telegram bot projects with Bun and Telegraf",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "bin": {
     "create-telebot": "./bin/create-telebot.js"
@@ -18,8 +18,8 @@
   "author": "Nikita Saltykov <nikita.saltykov@gmail.com>",
   "license": "MIT",
   "scripts": {
-    "dev": "bun run --watch index.ts",
-    "start": "bun run index.ts",
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
     "version:patch": "npm version patch",
     "version:minor": "npm version minor",
     "version:major": "npm version major",

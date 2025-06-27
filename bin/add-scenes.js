@@ -35,11 +35,11 @@ function addScenes() {
         console.log('🚀 Adding scenes/wizards setup...');
 
         // 1. Create scenes.ts
-        fs.writeFileSync(path.join(projectPath, 'scenes.ts'), scenesContent);
-        console.log('✅ Created scenes.ts');
+        fs.writeFileSync(path.join(projectPath, 'src/scenes.ts'), scenesContent);
+        console.log('✅ Created src/scenes.ts');
 
-        // 2. Update index.ts to use scenes
-        const indexPath = path.join(projectPath, 'index.ts');
+        // 2. Update src/index.ts to use scenes
+        const indexPath = path.join(projectPath, 'src/index.ts');
         let indexContent = fs.readFileSync(indexPath, 'utf-8');
 
         // Add imports
@@ -61,7 +61,7 @@ function addScenes() {
         );
 
         fs.writeFileSync(indexPath, indexContent);
-        console.log('✅ Updated index.ts to use scenes');
+        console.log('✅ Updated src/index.ts to use scenes');
 
         console.log('\n🎉 Scenes/Wizards setup complete!\n');
         console.log('Next steps:');

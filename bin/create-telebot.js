@@ -67,16 +67,22 @@ function createTelebot(projectName, options = {}) {
     // Copy template files
     const templatePath = path.resolve(__dirname, '..');
     const filesToCopy = [
-      'index.ts',
+      'src/index.ts',
       'package.json',
       'tsconfig.json',
       '.env.example',
       '.gitignore'
     ];
     
+    // Create src directory
+    fs.mkdirSync(path.join(projectPath, 'src'), { recursive: true });
+    
     filesToCopy.forEach(file => {
       const srcPath = path.join(templatePath, file);
       const destPath = path.join(projectPath, file);
+      
+      // Ensure destination directory exists
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
       
       if (fs.existsSync(srcPath)) {
         let content = fs.readFileSync(srcPath, 'utf8');
