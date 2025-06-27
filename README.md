@@ -4,7 +4,7 @@ A CLI tool to quickly create Telegram bot projects with Bun and Telegraf.
 
 ## Quick Start
 
-Create a new Telegram bot project with one command:
+Create a new Telegram bot project with interactive setup:
 
 ```bash
 npx create-telebot my-bot
@@ -12,12 +12,24 @@ npx create-telebot my-bot
 bunx create-telebot my-bot
 ```
 
+The CLI will guide you through:
+- Setting your bot token (optional)
+- Choosing features (webhook support, scenes/wizards)
+- Selecting webhook framework (Fastify or Hono)
+
 Then:
 ```bash
 cd my-bot
-cp .env.example .env
-# Add your bot token to .env
 bun run dev
+```
+
+### Non-Interactive Mode
+
+Skip the interactive prompts:
+
+```bash
+create-telebot my-bot --no-interactive
+create-telebot my-bot --token "your-bot-token" --no-interactive
 ```
 
 ## Global Installation
@@ -46,11 +58,20 @@ The generated project includes:
 - **Message echo** - Example text message handling
 - **Graceful shutdown** - Proper bot lifecycle management
 
+### Optional Features (via interactive setup)
+
+- **Webhook Support** - HTTP server with Fastify or Hono
+- **Scenes/Wizards** - Conversation flow management
+- **Auto-configuration** - Features are set up automatically
+
 ## Project Structure
 
 ```
 my-bot/
-├── index.ts          # Main bot file
+├── src/
+│   ├── index.ts      # Main bot file
+│   ├── server.ts     # Webhook server (if selected)
+│   └── scenes.ts     # Conversation scenes (if selected)
 ├── package.json      # Dependencies and scripts
 ├── tsconfig.json     # TypeScript configuration
 ├── .env.example      # Environment template
@@ -67,20 +88,38 @@ After creating a project:
 3. Run `bun run dev` for development with hot reload
 4. Run `bun run start` for production
 
-### Adding Webhook Support
+## Adding Features Later
 
-To add webhook support to your project, run the following command:
+You can add features to existing projects:
+
+### Webhook Support
 
 ```bash
 bun run add:webhook
+# or choose framework
+bun run add:webhook --framework hono
 ```
 
-This will install the necessary dependencies and create a `server.ts` file with a basic webhook setup.
-
-You can also choose between `fastify` (default) and `hono` as the server framework:
+### Scenes/Wizards Support
 
 ```bash
-bun run add:webhook --framework hono
+bun run add:scenes
+```
+
+## CLI Options
+
+```bash
+create-telebot <project-name> [options]
+
+Options:
+  --token <token>      Pre-fill bot token in .env file
+  --no-interactive     Skip interactive setup
+  --help, -h           Show help message
+
+Examples:
+  create-telebot my-bot
+  create-telebot my-bot --token "123456789:ABC..."
+  create-telebot my-bot --no-interactive
 ```
 
 ## Requirements

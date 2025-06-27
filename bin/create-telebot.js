@@ -4,13 +4,14 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import prompts from 'prompts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const options = { token: null };
+  const options = { token: null, interactive: true };
   let projectName = null;
 
   for (let i = 0; i < args.length; i++) {
@@ -18,10 +19,12 @@ function parseArgs() {
     
     if (arg === '--token' && i + 1 < args.length) {
       options.token = args[i + 1];
-      i++; // Skip next argument as it's the token value
+      i++;
     } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
+    } else if (arg === '--no-interactive') {
+      options.interactive = false;
     } else if (!projectName && !arg.startsWith('--')) {
       projectName = arg;
     }
@@ -35,8 +38,9 @@ function showHelp() {
 Usage: create-telebot <project-name> [options]
 
 Options:
-  --token <token>    Pre-fill bot token in .env file
-  --help, -h         Show this help message
+  --token <token>      Pre-fill bot token in .env file
+  --no-interactive     Skip interactive setup
+  --help, -h           Show this help message
 
 Examples:
   create-telebot my-bot
@@ -44,7 +48,40 @@ Examples:
 `);
 }
 
-function createTelebot(projectName, options = {}) {
+async function getInteractiveOptions() {
+  const questions = [
+    {
+      type: 'text',
+      name: 'token',
+      message: 'Bot token (optional, can be set later in .env):',
+      initial: ''
+    },
+    {
+      type: 'multiselect',
+      name: 'features',
+      message: 'Select features to add:',
+      choices: [
+        { title: 'Webhook support', value: 'webhook', description: 'Add webhook server setup' },
+        { title: 'Scenes/Wizards', value: 'scenes', description: 'Add conversation scenes support' }
+      ],
+      hint: 'Use space to select, enter to confirm'
+    },
+    {
+      type: prev => prev.includes('webhook') ? 'select' : null,
+      name: 'framework',
+      message: 'Choose webhook framework:',
+      choices: [
+        { title: 'Fastify', value: 'fastify' },
+        { title: 'Hono', value: 'hono' }
+      ],
+      initial: 0
+    }
+  ];
+
+  return await prompts(questions);
+}
+
+async function createTelebot(projectName, options = {}) {
   if (!projectName) {
     console.error('❌ Please provide a project name');
     showHelp();
@@ -60,6 +97,16 @@ function createTelebot(projectName, options = {}) {
 
   console.log(`🚀 Creating Telegram bot project: ${projectName}`);
   
+  // Get interactive options if not disabled
+  let interactiveOptions = {};
+  if (options.interactive) {
+    console.log('\\n📋 Let\'s set up your bot with some options:\\n');
+    interactiveOptions = await getInteractiveOptions();
+    
+    // Merge interactive options with CLI options (CLI takes precedence)
+    options = { ...interactiveOptions, ...options };
+  }
+  
   try {
     // Create project directory
     fs.mkdirSync(projectPath, { recursive: true });
@@ -67,16 +114,22 @@ function createTelebot(projectName, options = {}) {
     // Copy template files
     const templatePath = path.resolve(__dirname, '..');
     const filesToCopy = [
-      'index.ts',
+      'src/index.ts',
       'package.json',
       'tsconfig.json',
       '.env.example',
       '.gitignore'
     ];
     
+    // Create src directory
+    fs.mkdirSync(path.join(projectPath, 'src'), { recursive: true });
+    
     filesToCopy.forEach(file => {
       const srcPath = path.join(templatePath, file);
       const destPath = path.join(projectPath, file);
+      
+      // Ensure destination directory exists
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
       
       if (fs.existsSync(srcPath)) {
         let content = fs.readFileSync(srcPath, 'utf8');
@@ -150,6 +203,22 @@ bun run start
     console.log('📦 Installing dependencies...');
     execSync('bun install', { cwd: projectPath, stdio: 'inherit' });
     
+    // Apply selected features
+    if (options.features && options.features.length > 0) {
+      console.log('\\n🎛️ Setting up selected features...');
+      
+      if (options.features.includes('webhook')) {
+        console.log('🌐 Adding webhook support...');
+        const framework = options.framework || 'fastify';
+        execSync(`node ../bin/add-webhook.js --framework ${framework}`, { cwd: projectPath, stdio: 'inherit' });
+      }
+      
+      if (options.features.includes('scenes')) {
+        console.log('🎭 Adding scenes/wizards support...');
+        execSync('node ../bin/add-scenes.js', { cwd: projectPath, stdio: 'inherit' });
+      }
+    }
+    
     console.log('✅ Project created successfully!');
     console.log(`\n📁 cd ${projectName}`);
     
@@ -172,4 +241,7 @@ bun run start
 }
 
 const { projectName, options } = parseArgs();
-createTelebot(projectName, options);
+createTelebot(projectName, options).catch(error => {
+  console.error('❌ Error creating project:', error.message);
+  process.exit(1);
+});

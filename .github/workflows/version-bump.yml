@@ -1,0 +1,35 @@
+name: Version Bump on Develop Merge
+
+on:
+  push:
+    branches: [develop]
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.0.0
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Bump version
+        run: npm version patch --no-git-tag-version
+
+      - name: Commit version bump
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add package.json
+          git commit -m "Bump version to $(node -p "require('./package.json').version")"
+          git push
