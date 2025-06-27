@@ -1,0 +1,124 @@
+name: Release to Main
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.7)'
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Create release branch
+        run: |
+          git checkout -b release/${{ inputs.version }}
+          git push origin release/${{ inputs.version }}
+
+      - name: Create Pull Request to Main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head release/${{ inputs.version }} \
+            --title "Release ${{ inputs.version }}" \
+            --body "$(cat <<'EOF'
+          ## Release ${{ inputs.version }}
+          
+          ### Changes since last release
+          $(git log --oneline main..develop --pretty=format:"- %s")
+          
+          ### What's Changed
+          - Interactive CLI setup with feature selection
+          - Webhook and scenes/wizards auto-configuration  
+          - Updated project structure with src/ directory
+          - Enhanced documentation and version management
+          
+          ### How to Test
+          1. Test the CLI: \`npx create-telebot@${{ inputs.version }} test-bot\`
+          2. Verify interactive prompts work
+          3. Check feature installation (webhook, scenes)
+          
+          Ready for release to main branch.
+          
+          **Auto-merge**: This PR will be automatically merged if all checks pass.
+          EOF
+          )"
+
+      - name: Auto-merge PR (if checks pass)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Wait a moment for PR to be created
+          sleep 5
+          
+          # Get PR number
+          PR_NUMBER=$(gh pr view release/${{ inputs.version }} --json number --jq .number)
+          
+          # Enable auto-merge
+          gh pr merge $PR_NUMBER --auto --squash
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Wait for PR to be merged
+          sleep 30
+          
+          # Switch to main and pull latest
+          git checkout main
+          git pull origin main
+          
+          # Create and push tag
+          git tag ${{ inputs.version }}
+          git push origin ${{ inputs.version }}
+          
+          # Create GitHub release
+          gh release create ${{ inputs.version }} \
+            --title "Release ${{ inputs.version }}" \
+            --notes "$(cat <<'EOF'
+          ## What's New in ${{ inputs.version }}
+          
+          ### ✨ Features
+          - Interactive CLI setup with feature selection
+          - Auto-configuration for webhook and scenes/wizards
+          - Enhanced project structure with src/ directory
+          
+          ### 🔧 Improvements  
+          - Better documentation and examples
+          - Automatic version bumping on develop merges
+          - Streamlined development workflow
+          
+          ### 📦 Installation
+          \`\`\`bash
+          npx create-telebot@${{ inputs.version }} my-bot
+          # or
+          bunx create-telebot@${{ inputs.version }} my-bot
+          \`\`\`
+          
+          ### 🚀 Quick Start
+          \`\`\`bash
+          create-telebot my-bot
+          cd my-bot  
+          bun run dev
+          \`\`\`
+          EOF
+          )"
