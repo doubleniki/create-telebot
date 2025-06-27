@@ -83,6 +83,16 @@ You can also choose between `fastify` (default) and `hono` as the server framewo
 bun run add:webhook --framework hono
 ```
 
+### Adding Scenes/Wizards Support
+
+To add scenes/wizards support to your project, run the following command:
+
+```bash
+bun run add:scenes
+```
+
+This will create a `scenes.ts` file with a basic wizard scene and update your `index.ts` to handle it.
+
 ## Requirements
 
 - [Bun](https://bun.sh) installed on your system
