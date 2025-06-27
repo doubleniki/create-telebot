@@ -8,10 +8,46 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function createTelebot(projectName) {
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const options = { token: null };
+  let projectName = null;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    
+    if (arg === '--token' && i + 1 < args.length) {
+      options.token = args[i + 1];
+      i++; // Skip next argument as it's the token value
+    } else if (arg === '--help' || arg === '-h') {
+      showHelp();
+      process.exit(0);
+    } else if (!projectName && !arg.startsWith('--')) {
+      projectName = arg;
+    }
+  }
+
+  return { projectName, options };
+}
+
+function showHelp() {
+  console.log(`
+Usage: create-telebot <project-name> [options]
+
+Options:
+  --token <token>    Pre-fill bot token in .env file
+  --help, -h         Show this help message
+
+Examples:
+  create-telebot my-bot
+  create-telebot my-bot --token "123456789:ABCdefGHIjklMNOpqrstUVwxyz"
+`);
+}
+
+function createTelebot(projectName, options = {}) {
   if (!projectName) {
     console.error('❌ Please provide a project name');
-    console.log('Usage: create-telebot <project-name>');
+    showHelp();
     process.exit(1);
   }
 
@@ -56,6 +92,13 @@ function createTelebot(projectName) {
         fs.writeFileSync(destPath, content);
       }
     });
+    
+    // Create .env file with token if provided
+    if (options.token) {
+      const envContent = `BOT_TOKEN=${options.token}`;
+      fs.writeFileSync(path.join(projectPath, '.env'), envContent);
+      console.log('🔑 Bot token added to .env file');
+    }
     
     // Create README for the new project
     const readmeContent = `# ${projectName}
@@ -109,9 +152,14 @@ bun run start
     
     console.log('✅ Project created successfully!');
     console.log(`\n📁 cd ${projectName}`);
-    console.log('🔧 cp .env.example .env');
-    console.log('🤖 Add your bot token to .env');
-    console.log('🚀 bun run dev');
+    
+    if (options.token) {
+      console.log('🚀 bun run dev');
+    } else {
+      console.log('🔧 cp .env.example .env');
+      console.log('🤖 Add your bot token to .env');
+      console.log('🚀 bun run dev');
+    }
     
   } catch (error) {
     console.error('❌ Error creating project:', error.message);
@@ -123,5 +171,5 @@ bun run start
   }
 }
 
-const projectName = process.argv[2];
-createTelebot(projectName);
+const { projectName, options } = parseArgs();
+createTelebot(projectName, options);
