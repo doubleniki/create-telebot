@@ -13,11 +13,13 @@ bunx create-telebot my-bot
 ```
 
 The CLI will guide you through:
+
 - Setting your bot token (optional)
 - Choosing features (webhook support, scenes/wizards)
 - Selecting webhook framework (Fastify or Hono)
 
 Then:
+
 ```bash
 cd my-bot
 bun run dev
@@ -122,15 +124,27 @@ Examples:
   create-telebot my-bot --no-interactive
 ```
 
-### Adding Scenes/Wizards Support
-
-To add scenes/wizards support to your project, run the following command:
+### Scenes/Wizards Support
 
 ```bash
 bun run add:scenes
 ```
 
-This will create a `scenes.ts` file with a basic wizard scene and update your `index.ts` to handle it.
+## CLI Options
+
+```bash
+create-telebot <project-name> [options]
+
+Options:
+  --token <token>      Pre-fill bot token in .env file
+  --no-interactive     Skip interactive setup
+  --help, -h           Show help message
+
+Examples:
+  create-telebot my-bot
+  create-telebot my-bot --token "123456789:ABC..."
+  create-telebot my-bot --no-interactive
+```
 
 ## Requirements
 
