@@ -1,0 +1,28 @@
+{
+  "name": "create-telebot",
+  "version": "1.0.0",
+  "description": "A CLI tool to create Telegram bot projects with Bun and Telegraf",
+  "module": "index.ts",
+  "type": "module",
+  "bin": {
+    "create-telebot": "./bin/create-telebot.js"
+  },
+  "keywords": ["telegram", "bot", "bun", "telegraf", "cli", "boilerplate"],
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "dev": "bun run --watch index.ts",
+    "start": "bun run index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^24.0.6"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "dotenv": "^17.0.0",
+    "telegraf": "^4.16.3"
+  }
+}
