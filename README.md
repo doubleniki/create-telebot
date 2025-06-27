@@ -67,6 +67,22 @@ After creating a project:
 3. Run `bun run dev` for development with hot reload
 4. Run `bun run start` for production
 
+### Adding Webhook Support
+
+To add webhook support to your project, run the following command:
+
+```bash
+bun run add:webhook
+```
+
+This will install the necessary dependencies and create a `server.ts` file with a basic webhook setup.
+
+You can also choose between `fastify` (default) and `hono` as the server framework:
+
+```bash
+bun run add:webhook --framework hono
+```
+
 ## Requirements
 
 - [Bun](https://bun.sh) installed on your system
