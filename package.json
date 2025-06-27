@@ -7,8 +7,15 @@
   "bin": {
     "create-telebot": "./bin/create-telebot.js"
   },
-  "keywords": ["telegram", "bot", "bun", "telegraf", "cli", "boilerplate"],
-  "author": "",
+  "keywords": [
+    "telegram",
+    "bot",
+    "bun",
+    "telegraf",
+    "cli",
+    "boilerplate"
+  ],
+  "author": "Nikita Saltykov <nikita.saltykov@gmail.com>",
   "license": "MIT",
   "scripts": {
     "dev": "bun run --watch index.ts",
