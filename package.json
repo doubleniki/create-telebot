@@ -1,6 +1,6 @@
 {
   "name": "create-telebot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A CLI tool to create Telegram bot projects with Bun and Telegraf",
   "module": "index.ts",
   "type": "module",
