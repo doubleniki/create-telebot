@@ -17,6 +17,7 @@ The CLI will guide you through:
 - Setting your bot token (optional)
 - Choosing features (webhook support, scenes/wizards)
 - Selecting webhook framework (Fastify or Hono)
+- Picking package manager and install behavior (Bun by default)
 
 Then:
 
@@ -31,7 +32,7 @@ Skip the interactive prompts:
 
 ```bash
 create-telebot my-bot --no-interactive
-create-telebot my-bot --token "your-bot-token" --no-interactive
+create-telebot my-bot --token "your-bot-token" --package-manager pnpm --skip-install --no-interactive
 ```
 
 ## Global Installation
@@ -59,11 +60,12 @@ The generated project includes:
 - **Basic commands** - `/start` and `/help` handlers
 - **Message echo** - Example text message handling
 - **Graceful shutdown** - Proper bot lifecycle management
+- **Env validation** - BOT_TOKEN is required before launch
 
 ### Optional Features (via interactive setup)
 
-- **Webhook Support** - HTTP server with Fastify or Hono
-- **Scenes/Wizards** - Conversation flow management
+- **Webhook Support** - HTTP server with Fastify or Hono, health endpoint, configurable `WEBHOOK_PATH`
+- **Scenes/Wizards** - Conversation flow management with a sample wizard
 - **Auto-configuration** - Features are set up automatically
 
 ## Project Structure
@@ -102,27 +104,7 @@ bun run add:webhook
 bun run add:webhook --framework hono
 ```
 
-### Scenes/Wizards Support
-
-```bash
-bun run add:scenes
-```
-
-## CLI Options
-
-```bash
-create-telebot <project-name> [options]
-
-Options:
-  --token <token>      Pre-fill bot token in .env file
-  --no-interactive     Skip interactive setup
-  --help, -h           Show help message
-
-Examples:
-  create-telebot my-bot
-  create-telebot my-bot --token "123456789:ABC..."
-  create-telebot my-bot --no-interactive
-```
+Set `WEBHOOK_URL`, optional `WEBHOOK_PATH` (defaults to `/telebot-webhook`), and `SET_WEBHOOK=true` in `.env` when you want to register the webhook.
 
 ### Scenes/Wizards Support
 
@@ -136,16 +118,23 @@ bun run add:scenes
 create-telebot <project-name> [options]
 
 Options:
+  --package-manager <bun|npm|pnpm|yarn>  Choose package manager (default: bun)
+  --skip-install       Skip dependency installation
   --token <token>      Pre-fill bot token in .env file
+  --framework <fastify|hono>  Webhook framework when adding webhook
+  --dry-run            Show planned actions without writing files
+  --no-emoji           Disable emoji in output
   --no-interactive     Skip interactive setup
   --help, -h           Show help message
 
 Examples:
   create-telebot my-bot
   create-telebot my-bot --token "123456789:ABC..."
+  create-telebot my-bot --package-manager pnpm --skip-install --dry-run
   create-telebot my-bot --no-interactive
 ```
 
 ## Requirements
 
-- [Bun](https://bun.sh) installed on your system
+- [Bun](https://bun.sh) installed on your system for the generated project
+- Node.js available to run the CLI
