@@ -14,32 +14,43 @@ if (!token) {
   throw new Error('BOT_TOKEN must be provided!');
 }
 
+const webhookBase = process.env.WEBHOOK_URL;
+const webhookPath = process.env.WEBHOOK_PATH || '/telebot-webhook';
+const shouldSetWebhook = process.env.SET_WEBHOOK === 'true';
+const port = Number(process.env.PORT) || 3000;
+
 const bot = new Telegraf(token);
 const server = fastify();
 
-const webhookUrl = process.env.WEBHOOK_URL;
-if (!webhookUrl) {
-    throw new Error('WEBHOOK_URL must be provided!');
-}
+async function start() {
+  if (shouldSetWebhook) {
+    if (!webhookBase) {
+      throw new Error('WEBHOOK_URL must be provided when SET_WEBHOOK=true');
+    }
+    const fullWebhookUrl = \`\${webhookBase}\${webhookPath}\`;
+    await bot.telegram.setWebhook(fullWebhookUrl);
+    console.log(\`✅ Webhook set to \${fullWebhookUrl}\`);
+  } else {
+    console.log('ℹ️ Skipping bot.telegram.setWebhook (set SET_WEBHOOK=true to enable)');
+  }
 
-// Set the bot's webhook.
-// Note: You need to run this once to set the webhook.
-// After that, you can comment it out or remove it.
-bot.telegram.setWebhook(webhookUrl);
+  server.post(webhookPath, async (req, reply) => {
+    await bot.handleUpdate(req.body as any, reply.raw);
+    return reply.send({ ok: true });
+  });
 
-server.post(`/<path-to-webhook>`, (req, res) => {
-  return bot.handleUpdate(req.body as any, res.raw);
-});
+  server.get('/health', async () => ({ status: 'ok' }));
 
-bot.command('start', (ctx) => ctx.reply('Hello from webhook!'));
-
-server.listen({ port: 3000 }, (err, address) => {
-  if (err) {
-    console.error(err);
+  try {
+    const address = await server.listen({ port, host: '0.0.0.0' });
+    console.log(\`🚀 Server listening on \${address}\`);
+  } catch (err) {
+    console.error('❌ Failed to start server:', err);
     process.exit(1);
   }
-  console.log(`🚀 Server listening on ${address}`);
-});
+}
+
+start();
 `;
 
 const honoServerContent = `import { Telegraf } from 'telegraf';
@@ -50,30 +61,42 @@ if (!token) {
   throw new Error('BOT_TOKEN must be provided!');
 }
 
+const webhookBase = process.env.WEBHOOK_URL;
+const webhookPath = process.env.WEBHOOK_PATH || '/telebot-webhook';
+const shouldSetWebhook = process.env.SET_WEBHOOK === 'true';
+const port = Number(process.env.PORT) || 3000;
+
 const bot = new Telegraf(token);
 const app = new Hono();
 
-const webhookUrl = process.env.WEBHOOK_URL;
-if (!webhookUrl) {
-    throw new Error('WEBHOOK_URL must be provided!');
+if (shouldSetWebhook) {
+  if (!webhookBase) {
+    throw new Error('WEBHOOK_URL must be provided when SET_WEBHOOK=true');
+  }
+  const fullWebhookUrl = \`\${webhookBase}\${webhookPath}\`;
+  bot.telegram.setWebhook(fullWebhookUrl)
+    .then(() => console.log(\`✅ Webhook set to \${fullWebhookUrl}\`))
+    .catch((err) => {
+      console.error('❌ Failed to set webhook:', err);
+      process.exit(1);
+    });
+} else {
+  console.log('ℹ️ Skipping bot.telegram.setWebhook (set SET_WEBHOOK=true to enable)');
 }
 
-// Set the bot's webhook.
-// Note: You need to run this once to set the webhook.
-// After that, you can comment it out or remove it.
-bot.telegram.setWebhook(webhookUrl);
-
-app.post(`/<path-to-webhook>`, async (c) => {
-    const body = await c.req.json();
-    await bot.handleUpdate(body);
-    return c.json({ status: 'ok' });
+app.post(webhookPath, async (c) => {
+  const body = await c.req.json();
+  await bot.handleUpdate(body);
+  return c.json({ status: 'ok' });
 });
+
+app.get('/health', (c) => c.json({ status: 'ok' }));
 
 bot.command('start', (ctx) => ctx.reply('Hello from webhook!'));
 
 export default {
-    port: 3000,
-    fetch: app.fetch,
+  port,
+  fetch: app.fetch,
 };
 `;
 
@@ -131,9 +154,9 @@ function addWebhook() {
     
     console.log('\n🎉 Webhook setup complete!\n');
     console.log('Next steps:');
-    console.log('1. Set your WEBHOOK_URL in the .env file.');
-    console.log('2. Update the webhook path in src/server.ts.');
-    console.log('3. Run `bun run start:webhook` to start the server.');
+    console.log('1. Set WEBHOOK_URL and optional WEBHOOK_PATH in the .env file.');
+    console.log('2. Set SET_WEBHOOK=true when you want to register the webhook URL.');
+    console.log('3. Run `bun run start:webhook` to start the server (set PORT if needed).');
     
   } catch (error) {
     console.error('❌ Error adding webhook setup:', error.message);

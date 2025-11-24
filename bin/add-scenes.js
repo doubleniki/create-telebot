@@ -30,6 +30,63 @@ export const myScene = new Scenes.WizardScene(
 );
 `;
 
+function updateIndexForScenes(indexContent) {
+    if (indexContent.includes("ctx.scene.enter('my-scene')") || indexContent.includes("from './scenes'")) {
+        return { content: indexContent, changed: false };
+    }
+
+    let updated = indexContent;
+    const telegrafImportRegex = /import\s+\{[^}]*Telegraf[^}]*\}\s+from\s+'telegraf';/;
+
+    if (telegrafImportRegex.test(updated)) {
+        updated = updated.replace(
+            telegrafImportRegex,
+            "import { Telegraf, Scenes, session } from 'telegraf';\nimport { myScene } from './scenes';"
+        );
+    } else {
+        throw new Error('Could not find Telegraf import in src/index.ts for scenes setup.');
+    }
+
+    const botInitRegex = /const\s+bot\s*=\s*new\s+Telegraf[^\n]*\n/;
+    if (botInitRegex.test(updated)) {
+        updated = updated.replace(
+            botInitRegex,
+            "const bot = new Telegraf<Scenes.WizardContext>(token);\n\nconst stage = new Scenes.Stage<Scenes.WizardContext>([myScene]);\nbot.use(session());\nbot.use(stage.middleware());\n"
+        );
+    } else {
+        throw new Error('Could not find bot initialization in src/index.ts.');
+    }
+
+    if (!updated.includes("ctx.scene.enter('my-scene')")) {
+        const helpPattern = /bot.help\(\(ctx\) => {\n[\s\S]*?}\);\n/;
+        const textPattern = /bot.on\('text'[\s\S]*?\);\n/;
+        let inserted = false;
+
+        if (helpPattern.test(updated)) {
+            updated = updated.replace(
+                helpPattern,
+                (match) => `${match}\nbot.command('scene', (ctx) => ctx.scene.enter('my-scene'));\n`
+            );
+            inserted = true;
+        } else if (textPattern.test(updated)) {
+            updated = updated.replace(
+                textPattern,
+                (match) => `${match}\nbot.command('scene', (ctx) => ctx.scene.enter('my-scene'));\n`
+            );
+            inserted = true;
+        }
+
+        if (!inserted) {
+            updated = updated.replace(
+                'bot.catch((err) => {',
+                "bot.command('scene', (ctx) => ctx.scene.enter('my-scene'));\n\nbot.catch((err) => {"
+            );
+        }
+    }
+
+    return { content: updated, changed: true };
+}
+
 function addScenes() {
     try {
         console.log('🚀 Adding scenes/wizards setup...');
@@ -42,26 +99,13 @@ function addScenes() {
         const indexPath = path.join(projectPath, 'src/index.ts');
         let indexContent = fs.readFileSync(indexPath, 'utf-8');
 
-        // Add imports
-        indexContent = indexContent.replace(
-            'import { Telegraf } from \'telegraf\';',
-            'import { Telegraf, Scenes, session } from \'telegraf\';\nimport { myScene } from \'./scenes\';'
-        );
-
-        // Add stage middleware
-        indexContent = indexContent.replace(
-            'const bot = new Telegraf(token);',
-            'const bot = new Telegraf<Scenes.WizardContext>(token);\n\nconst stage = new Scenes.Stage<Scenes.WizardContext>([myScene]);\nbot.use(session());\nbot.use(stage.middleware());'
-        );
-
-        // Add command to enter the scene
-        indexContent = indexContent.replace(
-            "bot.command('help', (ctx) => ctx.reply('Send me a sticker'));",
-            "bot.command('help', (ctx) => ctx.reply('Send me a sticker'));\n\nbot.command('scene', (ctx) => ctx.scene.enter('my-scene'));"
-        );
-
-        fs.writeFileSync(indexPath, indexContent);
-        console.log('✅ Updated src/index.ts to use scenes');
+        const { content: updatedIndex, changed } = updateIndexForScenes(indexContent);
+        if (!changed) {
+            console.log('ℹ️ Scenes already configured in src/index.ts, skipping file update.');
+        } else {
+            fs.writeFileSync(indexPath, updatedIndex);
+            console.log('✅ Updated src/index.ts to use scenes');
+        }
 
         console.log('\n🎉 Scenes/Wizards setup complete!\n');
         console.log('Next steps:');

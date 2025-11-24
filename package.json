@@ -20,6 +20,9 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
+    "lint": "biome check .",
+    "format": "biome format .",
+    "test": "bun test",
     "version:patch": "npm version patch",
     "version:minor": "npm version minor",
     "version:major": "npm version major",
@@ -28,7 +31,8 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/node": "^24.0.6"
+    "@types/node": "^24.0.6",
+    "biome": "^1.9.4"
   },
   "peerDependencies": {
     "typescript": "^5"

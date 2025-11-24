@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -8,10 +8,86 @@ import prompts from 'prompts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const SUPPORTED_PACKAGE_MANAGERS = ['bun', 'npm', 'pnpm', 'yarn'];
+const TEMPLATE_PATH = path.join(__dirname, 'templates', 'base');
+let USE_EMOJI = true;
+
+function normalizePackageManager(pm) {
+  const candidate = (pm || '').toLowerCase();
+  if (SUPPORTED_PACKAGE_MANAGERS.includes(candidate)) return candidate;
+  console.warn(`⚠️ Unsupported package manager "${pm}", defaulting to bun.`);
+  return 'bun';
+}
+
+function ensurePackageManagerAvailable(packageManager) {
+  const check = spawnSync(packageManager, ['--version'], { stdio: 'ignore' });
+  if (check.error) {
+    throw new Error(
+      `Package manager "${packageManager}" is not available in PATH. Install it or choose another with --package-manager.`
+    );
+  }
+}
+
+function installDependencies(packageManager, cwd) {
+  const commands = {
+    bun: 'bun install',
+    npm: 'npm install',
+    pnpm: 'pnpm install',
+    yarn: 'yarn install',
+  };
+  const command = commands[packageManager];
+  if (!command) {
+    throw new Error(`Unsupported package manager: ${packageManager}`);
+  }
+
+  console.log(`${USE_EMOJI ? '📦 ' : ''}Installing dependencies with ${packageManager}...`);
+  execSync(command, { cwd, stdio: 'inherit' });
+}
+
+function collectTemplateEntries(srcDir, prefix = '') {
+  const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+  return entries.flatMap((entry) => {
+    const rel = path.join(prefix, entry.name);
+    if (entry.isDirectory()) {
+      return collectTemplateEntries(path.join(srcDir, entry.name), rel);
+    }
+    return [rel];
+  });
+}
+
+function copyTemplateDir(srcDir, destDir, projectName) {
+  const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+  entries.forEach((entry) => {
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
+
+    if (entry.isDirectory()) {
+      fs.mkdirSync(destPath, { recursive: true });
+      copyTemplateDir(srcPath, destPath, projectName);
+    } else if (entry.isFile()) {
+      let content = fs.readFileSync(srcPath, 'utf8');
+      if (entry.name === 'package.json') {
+        const pkg = JSON.parse(content);
+        pkg.name = projectName;
+        content = JSON.stringify(pkg, null, 2);
+      }
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
+      fs.writeFileSync(destPath, content);
+    }
+  });
+}
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const options = { token: null, interactive: true };
+  const options = {
+    token: null,
+    interactive: true,
+    packageManager: 'bun',
+    skipInstall: false,
+    framework: 'fastify',
+    dryRun: false,
+    noEmoji: false,
+  };
   let projectName = null;
 
   for (let i = 0; i < args.length; i++) {
@@ -20,6 +96,18 @@ function parseArgs() {
     if (arg === '--token' && i + 1 < args.length) {
       options.token = args[i + 1];
       i++;
+    } else if (arg === '--package-manager' && i + 1 < args.length) {
+      options.packageManager = args[i + 1];
+      i++;
+    } else if (arg === '--skip-install') {
+      options.skipInstall = true;
+    } else if (arg === '--framework' && i + 1 < args.length) {
+      options.framework = args[i + 1];
+      i++;
+    } else if (arg === '--dry-run') {
+      options.dryRun = true;
+    } else if (arg === '--no-emoji') {
+      options.noEmoji = true;
     } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
@@ -39,12 +127,19 @@ Usage: create-telebot <project-name> [options]
 
 Options:
   --token <token>      Pre-fill bot token in .env file
+  --package-manager    Choose bun|npm|pnpm|yarn (default: bun)
+  --skip-install       Skip dependency installation
+  --framework          Webhook framework when adding webhook (fastify|hono)
+  --dry-run            Show planned actions without writing files
+  --no-emoji           Disable emoji in output
   --no-interactive     Skip interactive setup
   --help, -h           Show this help message
 
 Examples:
   create-telebot my-bot
   create-telebot my-bot --token "123456789:ABCdefGHIjklMNOpqrstUVwxyz"
+  create-telebot my-bot --package-manager pnpm --skip-install
+  create-telebot my-bot --dry-run
 `);
 }
 
@@ -75,6 +170,34 @@ async function getInteractiveOptions() {
         { title: 'Hono', value: 'hono' }
       ],
       initial: 0
+    },
+    {
+      type: 'select',
+      name: 'packageManager',
+      message: 'Choose package manager for installation:',
+      choices: [
+        { title: 'Bun', value: 'bun' },
+        { title: 'npm', value: 'npm' },
+        { title: 'pnpm', value: 'pnpm' },
+        { title: 'yarn', value: 'yarn' }
+      ],
+      initial: 0
+    },
+    {
+      type: 'toggle',
+      name: 'skipInstall',
+      message: 'Skip dependency installation?',
+      active: 'yes',
+      inactive: 'no',
+      initial: false
+    },
+    {
+      type: 'toggle',
+      name: 'noEmoji',
+      message: 'Disable emoji in output?',
+      active: 'yes',
+      inactive: 'no',
+      initial: false
     }
   ];
 
@@ -83,7 +206,7 @@ async function getInteractiveOptions() {
 
 async function createTelebot(projectName, options = {}) {
   if (!projectName) {
-    console.error('❌ Please provide a project name');
+    console.error(`${USE_EMOJI ? '❌ ' : ''}Please provide a project name`);
     showHelp();
     process.exit(1);
   }
@@ -91,69 +214,78 @@ async function createTelebot(projectName, options = {}) {
   const projectPath = path.resolve(projectName);
   
   if (fs.existsSync(projectPath)) {
-    console.error(`❌ Directory ${projectName} already exists`);
+    console.error(`${USE_EMOJI ? '❌ ' : ''}Directory ${projectName} already exists`);
     process.exit(1);
   }
 
-  console.log(`🚀 Creating Telegram bot project: ${projectName}`);
+  console.log(`${USE_EMOJI ? '🚀 ' : ''}Creating Telegram bot project: ${projectName}`);
   
   // Get interactive options if not disabled
   let interactiveOptions = {};
   if (options.interactive) {
-    console.log('\\n📋 Let\'s set up your bot with some options:\\n');
+    console.log(`\n${USE_EMOJI ? '📋 ' : ''}Let's set up your bot with some options:\n`);
     interactiveOptions = await getInteractiveOptions();
     
     // Merge interactive options with CLI options (CLI takes precedence)
     options = { ...interactiveOptions, ...options };
   }
-  
+
+  options.packageManager = normalizePackageManager(options.packageManager);
+  options.features = options.features || [];
+  options.framework = (options.framework || 'fastify').toLowerCase();
+  if (!['fastify', 'hono'].includes(options.framework)) {
+    console.warn(`⚠️ Unknown framework "${options.framework}", defaulting to fastify.`);
+    options.framework = 'fastify';
+  }
+  USE_EMOJI = !options.noEmoji;
+
+  if (!options.skipInstall && !options.dryRun) {
+    try {
+      ensurePackageManagerAvailable(options.packageManager);
+    } catch (error) {
+      console.error(`❌ ${error.message}`);
+      process.exit(1);
+    }
+  }
+
   try {
+    if (!fs.existsSync(TEMPLATE_PATH)) {
+      throw new Error(`Template path not found: ${TEMPLATE_PATH}`);
+    }
+
+    if (options.dryRun) {
+      console.log(`${USE_EMOJI ? '🧪 ' : ''}Dry run enabled. Planned actions:`);
+      console.log(`- Create project directory: ${projectPath}`);
+      console.log(`- Copy template from: ${TEMPLATE_PATH}`);
+      const templateFiles = collectTemplateEntries(TEMPLATE_PATH);
+      console.log(`- Files to create (${templateFiles.length}):`);
+      templateFiles.forEach((file) => console.log(`  - ${file}`));
+      console.log(`- Package manager: ${options.packageManager} (${options.skipInstall ? 'skip install' : 'install deps'})`);
+      if (options.features.length > 0) {
+        console.log(`- Apply features: ${options.features.join(', ')} (framework: ${options.framework})`);
+      }
+      if (options.token) {
+        console.log('- Create .env with provided token');
+      }
+      console.log('- Generate README.md with setup instructions');
+      return;
+    }
+
     // Create project directory
     fs.mkdirSync(projectPath, { recursive: true });
-    
-    // Copy template files
-    const templatePath = path.resolve(__dirname, '..');
-    const filesToCopy = [
-      'src/index.ts',
-      'package.json',
-      'tsconfig.json',
-      '.env.example',
-      '.gitignore'
-    ];
-    
-    // Create src directory
-    fs.mkdirSync(path.join(projectPath, 'src'), { recursive: true });
-    
-    filesToCopy.forEach(file => {
-      const srcPath = path.join(templatePath, file);
-      const destPath = path.join(projectPath, file);
-      
-      // Ensure destination directory exists
-      fs.mkdirSync(path.dirname(destPath), { recursive: true });
-      
-      if (fs.existsSync(srcPath)) {
-        let content = fs.readFileSync(srcPath, 'utf8');
-        
-        // Update package.json name
-        if (file === 'package.json') {
-          const packageJson = JSON.parse(content);
-          packageJson.name = projectName;
-          delete packageJson.bin; // Remove bin field from template
-          content = JSON.stringify(packageJson, null, 2);
-        }
-        
-        fs.writeFileSync(destPath, content);
-      }
-    });
+
+    // Copy template files recursively
+    copyTemplateDir(TEMPLATE_PATH, projectPath, projectName);
     
     // Create .env file with token if provided
     if (options.token) {
       const envContent = `BOT_TOKEN=${options.token}`;
       fs.writeFileSync(path.join(projectPath, '.env'), envContent);
-      console.log('🔑 Bot token added to .env file');
+      console.log(`${USE_EMOJI ? '🔑 ' : ''}Bot token added to .env file`);
     }
     
     // Create README for the new project
+    const installCommand = options.packageManager === 'bun' ? 'bun install' : `${options.packageManager} install`;
     const readmeContent = `# ${projectName}
 
 A Telegram bot built with Bun and Telegraf.
@@ -162,7 +294,7 @@ A Telegram bot built with Bun and Telegraf.
 
 1. Install dependencies:
 \`\`\`bash
-bun install
+${installCommand}
 \`\`\`
 
 2. Create a \`.env\` file from the example:
@@ -200,8 +332,11 @@ bun run start
     
     fs.writeFileSync(path.join(projectPath, 'README.md'), readmeContent);
     
-    console.log('📦 Installing dependencies...');
-    execSync('bun install', { cwd: projectPath, stdio: 'inherit' });
+    if (options.skipInstall) {
+      console.log(`${USE_EMOJI ? '⏭️  ' : ''}Skipping dependency installation (per --skip-install)`);
+    } else {
+      installDependencies(options.packageManager, projectPath);
+    }
     
     // Apply selected features
     if (options.features && options.features.length > 0) {
@@ -219,16 +354,17 @@ bun run start
       }
     }
     
-    console.log('✅ Project created successfully!');
-    console.log(`\n📁 cd ${projectName}`);
-    
-    if (options.token) {
-      console.log('🚀 bun run dev');
-    } else {
-      console.log('🔧 cp .env.example .env');
-      console.log('🤖 Add your bot token to .env');
-      console.log('🚀 bun run dev');
+    console.log(`${USE_EMOJI ? '✅ ' : ''}Project created successfully!`);
+    console.log(`\n${USE_EMOJI ? '📁 ' : ''}cd ${projectName}`);
+    if (options.skipInstall) {
+      const installHint = options.packageManager === 'bun' ? 'bun install' : `${options.packageManager} install`;
+      console.log(`${USE_EMOJI ? '📦 ' : ''}${installHint}`);
     }
+    if (!options.token) {
+      console.log(`${USE_EMOJI ? '🔧 ' : ''}cp .env.example .env`);
+      console.log(`${USE_EMOJI ? '🤖 ' : ''}Add your bot token to .env`);
+    }
+    console.log(`${USE_EMOJI ? '🚀 ' : ''}bun run dev`);
     
   } catch (error) {
     console.error('❌ Error creating project:', error.message);
