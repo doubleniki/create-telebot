@@ -11,6 +11,7 @@ const __dirname = path.dirname(__filename);
 const SUPPORTED_PACKAGE_MANAGERS = ['bun', 'npm', 'pnpm', 'yarn'];
 const TEMPLATE_PATH = path.join(__dirname, 'templates', 'base');
 let USE_EMOJI = true;
+let USE_COLOR = true;
 
 function normalizePackageManager(pm) {
   const candidate = (pm || '').toLowerCase();
@@ -77,6 +78,11 @@ function copyTemplateDir(srcDir, destDir, projectName) {
   });
 }
 
+function formatPreview(title, content, maxLines = 20) {
+  const lines = content.split('\n').slice(0, maxLines);
+  return [`--- ${title} (preview) ---`, ...lines, '--- end ---'].join('\n');
+}
+
 function parseArgs() {
   const args = process.argv.slice(2);
   const options = {
@@ -87,6 +93,10 @@ function parseArgs() {
     framework: 'fastify',
     dryRun: false,
     noEmoji: false,
+    noColor: false,
+    verbose: false,
+    template: null,
+    envFrom: null,
   };
   let projectName = null;
 
@@ -108,6 +118,16 @@ function parseArgs() {
       options.dryRun = true;
     } else if (arg === '--no-emoji') {
       options.noEmoji = true;
+    } else if (arg === '--no-color') {
+      options.noColor = true;
+    } else if (arg === '--verbose' || arg === '-v') {
+      options.verbose = true;
+    } else if (arg === '--template' && i + 1 < args.length) {
+      options.template = args[i + 1];
+      i++;
+    } else if (arg === '--env-from' && i + 1 < args.length) {
+      options.envFrom = args[i + 1];
+      i++;
     } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
@@ -129,9 +149,13 @@ Options:
   --token <token>      Pre-fill bot token in .env file
   --package-manager    Choose bun|npm|pnpm|yarn (default: bun)
   --skip-install       Skip dependency installation
+  --template <path>    Use custom template directory instead of built-in
+  --env-from <file>    Prefill .env from a file (copies key/values)
   --framework          Webhook framework when adding webhook (fastify|hono)
   --dry-run            Show planned actions without writing files
   --no-emoji           Disable emoji in output
+  --no-color           Disable color output
+  --verbose, -v        Verbose output (with dry-run shows file previews)
   --no-interactive     Skip interactive setup
   --help, -h           Show this help message
 
@@ -192,6 +216,26 @@ async function getInteractiveOptions() {
       initial: false
     },
     {
+      type: 'text',
+      name: 'template',
+      message: 'Custom template directory (optional):',
+      initial: ''
+    },
+    {
+      type: 'text',
+      name: 'envFrom',
+      message: 'Path to .env source file to prefill (optional):',
+      initial: ''
+    },
+    {
+      type: 'toggle',
+      name: 'noColor',
+      message: 'Disable color output?',
+      active: 'yes',
+      inactive: 'no',
+      initial: false
+    },
+    {
       type: 'toggle',
       name: 'noEmoji',
       message: 'Disable emoji in output?',
@@ -238,6 +282,10 @@ async function createTelebot(projectName, options = {}) {
     options.framework = 'fastify';
   }
   USE_EMOJI = !options.noEmoji;
+  USE_COLOR = !options.noColor;
+  const templateDir = options.template
+    ? path.resolve(options.template)
+    : TEMPLATE_PATH;
 
   if (!options.skipInstall && !options.dryRun) {
     try {
@@ -249,15 +297,15 @@ async function createTelebot(projectName, options = {}) {
   }
 
   try {
-    if (!fs.existsSync(TEMPLATE_PATH)) {
-      throw new Error(`Template path not found: ${TEMPLATE_PATH}`);
+    if (!fs.existsSync(templateDir)) {
+      throw new Error(`Template path not found: ${templateDir}`);
     }
 
     if (options.dryRun) {
       console.log(`${USE_EMOJI ? '🧪 ' : ''}Dry run enabled. Planned actions:`);
       console.log(`- Create project directory: ${projectPath}`);
-      console.log(`- Copy template from: ${TEMPLATE_PATH}`);
-      const templateFiles = collectTemplateEntries(TEMPLATE_PATH);
+      console.log(`- Copy template from: ${templateDir}`);
+      const templateFiles = collectTemplateEntries(templateDir);
       console.log(`- Files to create (${templateFiles.length}):`);
       templateFiles.forEach((file) => console.log(`  - ${file}`));
       console.log(`- Package manager: ${options.packageManager} (${options.skipInstall ? 'skip install' : 'install deps'})`);
@@ -268,6 +316,14 @@ async function createTelebot(projectName, options = {}) {
         console.log('- Create .env with provided token');
       }
       console.log('- Generate README.md with setup instructions');
+      if (options.verbose) {
+        const installCommand = options.packageManager === 'bun' ? 'bun install' : `${options.packageManager} install`;
+        const readmePreview = `# ${projectName}\n\nA Telegram bot built with Bun and Telegraf.\n\nInstall: ${installCommand}\nFeatures: start/help/echo\nWebhook: optional (Fastify/Hono)\nScenes: optional wizard`;
+        const pkgPath = path.join(templateDir, 'package.json');
+        const pkgContent = fs.readFileSync(pkgPath, 'utf8');
+        console.log(formatPreview('README', readmePreview, 12));
+        console.log(formatPreview('package.json', pkgContent, 12));
+      }
       return;
     }
 
@@ -275,12 +331,20 @@ async function createTelebot(projectName, options = {}) {
     fs.mkdirSync(projectPath, { recursive: true });
 
     // Copy template files recursively
-    copyTemplateDir(TEMPLATE_PATH, projectPath, projectName);
+    copyTemplateDir(templateDir, projectPath, projectName);
     
     // Create .env file with token if provided
-    if (options.token) {
+    const envPath = path.join(projectPath, '.env');
+    if (options.envFrom) {
+      const srcEnv = path.resolve(options.envFrom);
+      if (!fs.existsSync(srcEnv)) {
+        throw new Error(`Env source file not found: ${srcEnv}`);
+      }
+      fs.copyFileSync(srcEnv, envPath);
+      console.log(`${USE_EMOJI ? '🔑 ' : ''}.env prefilled from ${srcEnv}`);
+    } else if (options.token) {
       const envContent = `BOT_TOKEN=${options.token}`;
-      fs.writeFileSync(path.join(projectPath, '.env'), envContent);
+      fs.writeFileSync(envPath, envContent);
       console.log(`${USE_EMOJI ? '🔑 ' : ''}Bot token added to .env file`);
     }
     
