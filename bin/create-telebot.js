@@ -9,7 +9,8 @@ import prompts from 'prompts';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const SUPPORTED_PACKAGE_MANAGERS = ['bun', 'npm', 'pnpm', 'yarn'];
-const TEMPLATE_PATH = path.join(__dirname, 'templates', 'base');
+const PRESETS_DIR = path.join(__dirname, 'templates');
+const TEMPLATE_PATH = path.join(PRESETS_DIR, 'base');
 let USE_EMOJI = true;
 let USE_COLOR = true;
 
@@ -97,6 +98,8 @@ function parseArgs() {
     verbose: false,
     template: null,
     envFrom: null,
+    preset: 'base',
+    features: [],
   };
   let projectName = null;
 
@@ -128,6 +131,12 @@ function parseArgs() {
     } else if (arg === '--env-from' && i + 1 < args.length) {
       options.envFrom = args[i + 1];
       i++;
+    } else if (arg === '--preset' && i + 1 < args.length) {
+      options.preset = args[i + 1];
+      i++;
+    } else if (arg === '--features' && i + 1 < args.length) {
+      options.features = args[i + 1].split(',').map((f) => f.trim()).filter(Boolean);
+      i++;
     } else if (arg === '--help' || arg === '-h') {
       showHelp();
       process.exit(0);
@@ -150,6 +159,8 @@ Options:
   --package-manager    Choose bun|npm|pnpm|yarn (default: bun)
   --skip-install       Skip dependency installation
   --template <path>    Use custom template directory instead of built-in
+  --preset <name>      Choose preset from templates/ (default: base)
+  --features <list>    Comma-separated feature list (webhook,scenes,i18n,tests,secure)
   --env-from <file>    Prefill .env from a file (copies key/values)
   --framework          Webhook framework when adding webhook (fastify|hono)
   --dry-run            Show planned actions without writing files
@@ -173,6 +184,18 @@ async function getInteractiveOptions() {
       type: 'text',
       name: 'token',
       message: 'Bot token (optional, can be set later in .env):',
+      initial: ''
+    },
+    {
+      type: 'text',
+      name: 'preset',
+      message: 'Preset (base/webhook-fastify/webhook-hono/scenes/tests/secure) [base]:',
+      initial: 'base'
+    },
+    {
+      type: 'text',
+      name: 'features',
+      message: 'Features (comma separated: webhook,scenes,i18n,tests,secure):',
       initial: ''
     },
     {
@@ -283,9 +306,10 @@ async function createTelebot(projectName, options = {}) {
   }
   USE_EMOJI = !options.noEmoji;
   USE_COLOR = !options.noColor;
-  const templateDir = options.template
+  const presetDir = options.template
     ? path.resolve(options.template)
-    : TEMPLATE_PATH;
+    : path.join(PRESETS_DIR, options.preset || 'base');
+  const templateDir = presetDir;
 
   if (!options.skipInstall && !options.dryRun) {
     try {
@@ -304,6 +328,7 @@ async function createTelebot(projectName, options = {}) {
     if (options.dryRun) {
       console.log(`${USE_EMOJI ? '🧪 ' : ''}Dry run enabled. Planned actions:`);
       console.log(`- Create project directory: ${projectPath}`);
+      console.log(`- Preset: ${options.preset || 'base'}`);
       console.log(`- Copy template from: ${templateDir}`);
       const templateFiles = collectTemplateEntries(templateDir);
       console.log(`- Files to create (${templateFiles.length}):`);

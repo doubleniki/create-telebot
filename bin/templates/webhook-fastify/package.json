@@ -1,0 +1,19 @@
+{
+  "name": "telebot-webhook-fastify",
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "start:webhook": "bun run src/server.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "dotenv": "^17.0.0",
+    "fastify": "^4.28.1",
+    "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.6"
+  }
+}
